@@ -18,6 +18,7 @@ export type ClaimEventType =
   | 'documents.requested'
   | 'documents.received'
   | 'risk.assessed'
+  | 'claim.participants.updated'
   | 'adjustment.approved'
   | 'payment.authorized'
   | 'payment.settled'
@@ -32,7 +33,30 @@ export interface PolicyVersion { policyId: string; version: number; effectiveFro
 export interface EvidenceRecord { id: string; kind: string; hash: string; version: number; receivedAt: string; reviewed: boolean; accepted?: boolean; source: string; supersedes?: string; }
 export interface PaymentEntry { id: string; kind: 'authorization' | 'settlement' | 'reversal' | 'recovery'; amount: MonetaryAmount; sourceId: string; status: 'pending' | 'posted' | 'voided'; createdAt: string; }
 export interface RuleSnapshot { version: string; frozenAt: string; ruleIds: string[]; }
-export interface RiskSignal { code: string; score: number; explanation: string; participants: string[]; }
+export interface RiskSignalSource { kind: 'claim' | 'claim_attribute' | 'node'; id: string; }
+export interface RiskSignal {
+  code: string;
+  score: number;
+  explanation: string;
+  /** Participant/claim ids kept for backwards compatibility; use nodeKey/sources for attribution. */
+  participants: string[];
+  nodeKind?: Participant['kind'];
+  nodeKey?: string;
+  windowIndex?: number;
+  windowStart?: string;
+  windowEnd?: string;
+  relatedClaims?: string[];
+  sources?: RiskSignalSource[];
+  dedupeKey?: string;
+}
+export interface TriggeredRiskNode {
+  key: string;
+  kind: Participant['kind'];
+  windowIndex: number;
+  windowStart: string;
+  claims: string[];
+  signals: string[];
+}
 export interface AuditEntry { sequence: number; eventId: string; type: ClaimEventType; occurredAt: string; actor: string; summary: string; }
 
 export interface ClaimState {
@@ -52,6 +76,9 @@ export interface ClaimState {
   pendingDocuments: string[];
   riskSignals: RiskSignal[];
   riskScore: number;
+  riskRelatedClaims?: string[];
+  riskTriggeredNodes?: TriggeredRiskNode[];
+  riskFingerprint?: string;
   payments: PaymentEntry[];
   approvedMinor: number;
   audit: AuditEntry[];

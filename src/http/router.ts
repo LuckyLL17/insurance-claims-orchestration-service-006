@@ -23,7 +23,8 @@ export async function route(req: IncomingMessage, res: ServerResponse, app: AppC
     if (method === 'POST' && path[2] === 'evidence') return json(res, 201, app.claims.addEvidence(id, input, 'api', req.headers['idempotency-key'] as string));
     if (method === 'POST' && path[2] === 'events') return json(res, 200, app.claims.addEvent(id, input.type, input.payload, input.actor ?? 'api', input.idempotencyKey, input.occurredAt));
     if (method === 'POST' && path[2] === 'risk') return json(res, 200, app.risks.assess(id, 'api'));
-    if (method === 'GET' && path[2] === 'risk') return json(res, 200, { relatedClaims: app.risks.related(id), state: app.claims.get(id) });
+    if (method === 'GET' && path[2] === 'risk') { const explanation = app.risks.explain(id); return json(res, 200, { ...explanation, state: app.claims.get(id) }); }
+    if (method === 'POST' && path[2] === 'participants') return json(res, 200, app.claims.updateParticipants(id, input.participants ?? [], 'api', req.headers['idempotency-key'] as string));
     if (method === 'POST' && path[2] === 'payments') return json(res, 200, app.payments.settle(id, input, 'api'));
     if (method === 'POST' && path[2] === 'reversals') return json(res, 200, app.payments.reverse(id, input, 'api'));
     if (method === 'POST' && path[2] === 'tasks') return json(res, 201, app.tasks.create(id, input.kind));

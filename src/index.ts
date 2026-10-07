@@ -7,14 +7,17 @@ import { ReplayService } from './application/replay-service';
 import { EvidenceLedger } from './domain/evidence';
 import { PaymentLedger } from './domain/payment-ledger';
 import { PolicyCatalog } from './domain/policy';
-import { RiskGraph } from './domain/risk';
+import { RiskGraph, DEFAULT_RISK_WINDOW_MS } from './domain/risk';
 import { RuleEngine } from './domain/rules';
 import { TaskBoard } from './domain/task';
 import { startServer } from './http/server';
 
-export function buildApp() {
+export interface BuildAppOptions { riskWindowMs?: number; }
+
+export function buildApp(options: BuildAppOptions = {}) {
   const events = new EventStore(); const policies = new PolicyCatalog(); const rules = new RuleEngine(); const claims = new ClaimService(events, policies, rules, new EvidenceLedger());
-  return { claims, payments: new PaymentService(claims, new PaymentLedger()), risks: new RiskService(claims, new RiskGraph()), tasks: new TaskService(claims, new TaskBoard()), replay: new ReplayService(events, claims), rules };
+  const graph = new RiskGraph(options.riskWindowMs ?? DEFAULT_RISK_WINDOW_MS);
+  return { claims, payments: new PaymentService(claims, new PaymentLedger()), risks: new RiskService(claims, graph), tasks: new TaskService(claims, new TaskBoard()), replay: new ReplayService(events, claims), rules };
 }
 
 if (require.main === module) void startServer(buildApp());

@@ -25,7 +25,18 @@ export class ClaimService {
     const claim = this.get(id); const record = this.evidence.review(evidenceId, accepted, claim.evidence); return this.addEvent(id, 'evidence.reviewed', { evidence: record }, actor, key);
   }
 
-  get(id: string): ClaimState { return this.replay(id, this.events.list(id)); }
+  get(id: string): ClaimState {
+    return this.replay(id, this.events.list(id));
+  }
+  list(): ClaimState[] { return this.events.aggregateIds().map((id) => this.get(id)); }
+
+  /** Replace the full participant set; removed parties converge the graph on next assessment. */
+  updateParticipants(id: string, participants: ClaimState['participants'], actor: string, key?: string): ClaimState {
+    this.assertExists(id);
+    const normalized = participants.map((participant) => ({ ...participant }));
+    return this.addEvent(id, 'claim.participants.updated', { participants: normalized }, actor, key);
+  }
+
   replay(id: string, events: DomainEvent[]): ClaimState {
     const state = this.empty(id);
     for (const event of events.sort((a, b) => a.sequence - b.sequence)) this.apply(state, event);
@@ -40,13 +51,14 @@ export class ClaimService {
     if (state.processedEventIds.has(event.id)) return; state.processedEventIds.add(event.id); state.version = event.sequence;
     const payload = event.payload as any;
     if (event.type === 'claim.reported') { state.policyId = payload.policyId; state.lossAt = payload.lossAt; state.reportedAt = payload.reportedAt; state.channel = payload.channel; state.participants = payload.participants; state.loss = payload.loss; state.status = 'reported'; }
+    if (event.type === 'claim.participants.updated') { state.participants = payload.participants; }
     if (event.type === 'policy.snapshot.created') { state.policy = payload.policy; state.ruleSnapshot = payload.ruleSnapshot; }
     if (event.type === 'evidence.added') { state.evidence = [...state.evidence.filter((e) => e.id !== payload.evidence.id), payload.evidence]; state.status = state.status === 'reported' ? 'investigating' : state.status; }
     if (event.type === 'evidence.reviewed') { state.evidence = state.evidence.map((e) => e.id === payload.evidence.id ? payload.evidence : e); }
     if (event.type === 'documents.requested') { state.pendingDocuments = [...new Set([...(state.pendingDocuments), ...(payload.kinds ?? [])])]; state.status = 'awaiting_documents'; }
     if (event.type === 'documents.received') { state.pendingDocuments = state.pendingDocuments.filter((kind) => !(payload.kinds ?? []).includes(kind)); if (!state.pendingDocuments.length) state.status = 'ready_for_adjustment'; }
     if (event.type === 'survey.completed') { state.completedSurveys = [...new Set([...state.completedSurveys, payload.taskId])]; }
-    if (event.type === 'risk.assessed') { state.riskSignals = payload.signals; state.riskScore = payload.score; }
+    if (event.type === 'risk.assessed') { state.riskSignals = payload.signals; state.riskScore = payload.score; state.riskRelatedClaims = payload.relatedClaims ?? []; state.riskTriggeredNodes = payload.triggeredNodes ?? []; state.riskFingerprint = payload.fingerprint; }
     if (event.type === 'adjustment.approved') { state.approvedMinor = payload.approvedMinor; state.requiredEvidence = new Set(payload.requiredEvidence); state.status = 'ready_for_adjustment'; }
     if (event.type === 'payment.settled' || event.type === 'payment.reversed') { state.payments = [...state.payments, payload.payment]; state.status = payload.payment.kind === 'reversal' ? 'reopened' : 'partially_paid'; }
     if (event.type === 'claim.reopened') state.status = 'reopened';
