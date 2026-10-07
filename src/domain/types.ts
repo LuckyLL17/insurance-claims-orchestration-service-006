@@ -10,6 +10,7 @@ export type ClaimStatus =
 
 export type ClaimEventType =
   | 'claim.reported'
+  | 'participants.updated'
   | 'policy.snapshot.created'
   | 'evidence.added'
   | 'evidence.reviewed'
@@ -32,7 +33,21 @@ export interface PolicyVersion { policyId: string; version: number; effectiveFro
 export interface EvidenceRecord { id: string; kind: string; hash: string; version: number; receivedAt: string; reviewed: boolean; accepted?: boolean; source: string; supersedes?: string; }
 export interface PaymentEntry { id: string; kind: 'authorization' | 'settlement' | 'reversal' | 'recovery'; amount: MonetaryAmount; sourceId: string; status: 'pending' | 'posted' | 'voided'; createdAt: string; }
 export interface RuleSnapshot { version: string; frozenAt: string; ruleIds: string[]; }
-export interface RiskSignal { code: string; score: number; explanation: string; participants: string[]; }
+export interface RiskSignalSource { type: 'graph' | 'claim'; rule: string; detail: string; }
+export interface RiskSignalNode { kind: Participant['kind']; id: string; }
+export interface RiskSignal {
+  code: string;
+  score: number;
+  explanation: string;
+  /** Legacy flat projection: trigger participant id followed by related claim ids. */
+  participants: string[];
+  /** Participant node that triggered the association. */
+  node?: RiskSignalNode;
+  /** Other claims connected through `node`, within the configured time window. */
+  relatedClaims?: string[];
+  /** Provenance of the signal: graph association or claim-level rule. */
+  source?: RiskSignalSource;
+}
 export interface AuditEntry { sequence: number; eventId: string; type: ClaimEventType; occurredAt: string; actor: string; summary: string; }
 
 export interface ClaimState {
